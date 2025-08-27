@@ -1,129 +1,33 @@
-import React, { useState } from "react";
-import {
-  Container,
-  Typography,
-  TextField,
-  Button,
-  Paper,
-  Box,
-  Alert,
-  CircularProgress,
-  Divider,
-} from "@mui/material";
-import { deployAgreement } from "../api/rentchain";
+import { useState } from "react";
+import { deployAgreement, addProperty } from "../api/rentchain";
+import { Container, Paper, TextField, Typography, Button, Alert } from "@mui/material";
 
 export default function DeployAgreement() {
-  const [form, setForm] = useState({
-    renter: "",
-    ipfsHash: "",
-    rentEth: "",
-    depositEth: "",
-    duration: "",
-  });
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState("");
+  const [form, setForm] = useState({ renter: "", title: "", description: "", ipfsHash: "", rentEth: "", depositEth: "", duration: "", owner: "" });
+  const [result, setResult] = useState(""); 
   const [error, setError] = useState("");
-
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
-
+  function handleChange(e) { setForm({ ...form, [e.target.name]: e.target.value }); }
   async function handleSubmit(e) {
     e.preventDefault();
-    setLoading(true);
-    setError("");
-    setResult("");
+    setResult(""); setError("");
     try {
-      const response = await deployAgreement(form);
-      setResult(`Deployed to: ${response.address}`);
-    } catch (err) {
-      setError("Failed to deploy contract.");
-    }
-    setLoading(false);
+      const deployRes = await deployAgreement({ renter: form.renter, ipfsHash: form.ipfsHash, rentEth: form.rentEth, depositEth: form.depositEth, duration: form.duration });
+      await addProperty({ ...form, contractAddress: deployRes.address });
+      setResult("Agreement Deployed and Property Listed!");
+    } catch (e) { setError("Failed to deploy: " + e.message); }
   }
-
   return (
-    <Container maxWidth="sm" sx={{ mt: 8, mb: 8 }}>
-      <Paper elevation={4} sx={{ p: 4, background: "#f4f8fb" }}>
-        <Typography variant="h4" fontWeight={900} align="center" color="primary" gutterBottom>
-          Deploy New Rental Agreement
-        </Typography>
-        <Divider sx={{ mb: 3 }} />
-        <Box
-          component="form"
-          onSubmit={handleSubmit}
-          autoComplete="off"
-          sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}
-        >
-          <TextField
-            label="Renter Address"
-            name="renter"
-            value={form.renter}
-            onChange={handleChange}
-            required
-            fullWidth
-            helperText="Ethereum address of the renter"
-          />
-          <TextField
-            label="Property IPFS Hash"
-            name="ipfsHash"
-            value={form.ipfsHash}
-            onChange={handleChange}
-            required
-            fullWidth
-            helperText="IPFS hash for your property details/files"
-          />
-          <TextField
-            label="Rent (ETH)"
-            name="rentEth"
-            type="number"
-            value={form.rentEth}
-            onChange={handleChange}
-            required
-            fullWidth
-            helperText="Monthly rent in ETH"
-          />
-          <TextField
-            label="Deposit (ETH)"
-            name="depositEth"
-            type="number"
-            value={form.depositEth}
-            onChange={handleChange}
-            required
-            fullWidth
-            helperText="Security deposit in ETH"
-          />
-          <TextField
-            label="Duration (days)"
-            name="duration"
-            type="number"
-            value={form.duration}
-            onChange={handleChange}
-            required
-            fullWidth
-            helperText="Rental period (number of days)"
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            type="submit"
-            size="large"
-            disabled={loading}
-            sx={{ fontWeight: 700, py: 1.5, fontSize: 18 }}
-          >
-            {loading ? <CircularProgress size={22} color="inherit" /> : "Deploy Agreement"}
-          </Button>
-        </Box>
-        {result && (
-          <Alert severity="success" sx={{ mt: 3, fontWeight: 600, fontSize: 15 }}>
-            {result}
-          </Alert>
-        )}
-        {error && (
-          <Alert severity="error" sx={{ mt: 3, fontWeight: 600, fontSize: 15 }}>
-            {error}
-          </Alert>
-        )}
+    <Container maxWidth="sm" sx={{ mt: 6 }}>
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h4">Deploy New Rental Agreement</Typography>
+        <form onSubmit={handleSubmit}>
+          {["title", "description", "ipfsHash", "renter", "rentEth", "depositEth", "duration", "owner"].map(field => (
+            <TextField key={field} name={field} value={form[field]} onChange={handleChange} label={field.charAt(0).toUpperCase()+field.slice(1)} fullWidth sx={{ mb: 2 }} required />
+          ))}
+          <Button type="submit" variant="contained" color="primary" fullWidth>Deploy & List</Button>
+        </form>
+        {result && <Alert severity="success" sx={{ mt: 2 }}>{result}</Alert>}
+        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </Paper>
     </Container>
   );

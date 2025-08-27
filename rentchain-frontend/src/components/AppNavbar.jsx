@@ -1,35 +1,18 @@
-import { AppBar, Toolbar, Typography, Button, Box } from "@mui/material";
-import { Link, useLocation } from "react-router-dom";
+// src/components/AppNavbar.jsx
+import { AppBar, Toolbar, Typography, Button, Avatar, Box } from "@mui/material";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import { Link } from "react-router-dom";
 
 export default function AppNavbar() {
-  const location = useLocation();
   return (
-    <AppBar position="sticky" elevation={3} color="primary">
+    <AppBar position="sticky" color="primary" elevation={5}>
       <Toolbar sx={{ minHeight: 72 }}>
-        <img src="/logo192.png" alt="Logo" style={{ width: 40, marginRight: 16 }} />
-        <Typography variant="h5" fontWeight={900} sx={{ letterSpacing: 1, flexGrow: 1 }}>
-          RentChain
-        </Typography>
-        <Button
-          color="inherit"
-          component={Link}
-          to="/"
-          sx={{
-            borderBottom: location.pathname === "/" ? "3px solid #fff" : "none",
-            borderRadius: 0
-          }}>
-          Dashboard
-        </Button>
-        <Button
-          color="inherit"
-          component={Link}
-          to="/deploy"
-          sx={{
-            borderBottom: location.pathname === "/deploy" ? "3px solid #fff" : "none",
-            borderRadius: 0
-          }}>
-          Deploy
-        </Button>
+        <Typography variant="h5" fontWeight={900} sx={{ flexGrow: 1, letterSpacing: 1 }}>RentChain</Typography>
+        <Button color="inherit" component={Link} to="/listings">Listings</Button>
+        <Button color="inherit" component={Link} to="/deploy">Deploy</Button>
+        <Button color="inherit" component={Link} to="/dashboard">Dashboard</Button>
+        <Box mx={2}><NotificationsIcon fontSize="large" /></Box>
+        <Avatar alt="User" src="/static/avatar.png" />
       </Toolbar>
     </AppBar>
   );

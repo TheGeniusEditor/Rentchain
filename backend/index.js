@@ -3,15 +3,24 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 const { JsonRpcProvider, Contract, Wallet, formatEther, parseEther, ContractFactory } = require('ethers');
 
+const Property = require('./models/Property');
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// --- Dynamically load ABI and Bytecode from Hardhat artifact ---
+// MongoDB Atlas Connection!
+mongoose.connect(process.env.MONGO_URL, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('MongoDB Atlas connected'))
+  .catch(err => console.error('MongoDB Atlas connection error:', err));
+
+// Load ABI/Bytecode from Hardhat
 const artifact = JSON.parse(
   fs.readFileSync(
     path.join(__dirname, '../rentchain-hardhat2/artifacts/contracts/RentalAgreement.sol/RentalAgreement.json'),
@@ -21,14 +30,42 @@ const artifact = JSON.parse(
 
 const abi = artifact.abi;
 const bytecode = artifact.bytecode;
-
-// --- Setup Ethereum provider and contract instance ---
 const provider = new JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
-const contract = new Contract(process.env.CONTRACT_ADDRESS, abi, provider);
 
-// --- API Endpoints ---
+// --- Property Listing APIs ---
 
-// Deploy a new RentalAgreement contract
+// Create a new property listing (after contract deploy)
+app.post('/property', async (req, res) => {
+  try {
+    const { title, description, ipfsHash, owner, contractAddress, rentEth, depositEth, duration } = req.body;
+    const property = new Property({ title, description, ipfsHash, owner, contractAddress, rentEth, depositEth, duration });
+    await property.save();
+    res.json({ success: true, property });
+  } catch (err) {
+    res.status(400).json({ error: err.toString() });
+  }
+});
+
+// Get all property listings
+app.get('/properties', async (req, res) => {
+  const properties = await Property.find();
+  res.json(properties);
+});
+
+// Get a single property listing by ID
+app.get('/property/:id', async (req, res) => {
+  const property = await Property.findById(req.params.id);
+  res.json(property);
+});
+
+// Get all properties by owner address
+app.get('/properties/by-owner/:owner', async (req, res) => {
+  const properties = await Property.find({ owner: req.params.owner });
+  res.json(properties);
+});
+
+// --- Rental Agreement APIs ---
+
 app.post('/deploy', async (req, res) => {
   try {
     const { renter, ipfsHash, rentEth, depositEth, duration } = req.body;
@@ -51,9 +88,6 @@ app.post('/deploy', async (req, res) => {
   }
 });
 
-// ----------- Dynamic multi-address endpoints (new!) ----------------
-
-// Get the status of any contract by address
 app.get('/status/:address', async (req, res) => {
   try {
     const dynamicContract = new Contract(req.params.address, abi, provider);
@@ -65,7 +99,6 @@ app.get('/status/:address', async (req, res) => {
   }
 });
 
-// Get agreement details of any contract by address
 app.get('/agreement/:address', async (req, res) => {
   try {
     const dynamicContract = new Contract(req.params.address, abi, provider);
@@ -97,7 +130,6 @@ app.get('/agreement/:address', async (req, res) => {
   }
 });
 
-// Activate any contract by address
 app.post('/activate', async (req, res) => {
   try {
     const { contractAddress, rentEth, depositEth } = req.body;
@@ -112,7 +144,6 @@ app.post('/activate', async (req, res) => {
   }
 });
 
-// Terminate any contract by address
 app.post('/terminate', async (req, res) => {
   try {
     const { contractAddress } = req.body;
@@ -126,7 +157,7 @@ app.post('/terminate', async (req, res) => {
   }
 });
 
-// ----------- Default single-contract endpoints for legacy support (optional) -------------
+// --- Legacy Endpoints (optional) ---
 
 app.get('/status', async (req, res) => {
   const isActive = await contract.isActive();
@@ -158,32 +189,6 @@ app.get('/agreement', async (req, res) => {
     isActive,
     isTerminated
   });
-});
-
-app.post('/activate-old', async (req, res) => {
-  try {
-    const { rentEth, depositEth } = req.body;
-    const wallet = new Wallet(process.env.PRIVATE_KEY, provider);
-    const contractWithSigner = contract.connect(wallet);
-    const value = parseEther((Number(rentEth) + Number(depositEth)).toString());
-    const tx = await contractWithSigner.activateAgreement({ value });
-    await tx.wait();
-    res.json({ success: true, txHash: tx.hash });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.toString() });
-  }
-});
-
-app.post('/terminate-old', async (req, res) => {
-  try {
-    const wallet = new Wallet(process.env.PRIVATE_KEY, provider);
-    const contractWithSigner = contract.connect(wallet);
-    const tx = await contractWithSigner.terminateAgreement();
-    await tx.wait();
-    res.json({ success: true, txHash: tx.hash });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.toString() });
-  }
 });
 
 app.listen(port, () => {
