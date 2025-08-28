@@ -5,6 +5,9 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const { JsonRpcProvider, Contract, Wallet, formatEther, parseEther, ContractFactory } = require('ethers');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const upload = multer();
 
 const Property = require('./models/Property');
 const app = express();
@@ -13,11 +16,16 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Atlas Connection!
-mongoose.connect(process.env.MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('MongoDB Atlas connected'))
+// Cloudinary configuration
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// MongoDB Atlas Connection
+mongoose.connect(process.env.MONGO_URL)
+  .then(() => console.log('MongoDB Atlas connected'))
   .catch(err => console.error('MongoDB Atlas connection error:', err));
 
 // Load ABI/Bytecode from Hardhat
@@ -32,13 +40,28 @@ const abi = artifact.abi;
 const bytecode = artifact.bytecode;
 const provider = new JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
 
-// --- Property Listing APIs ---
+// --- NEW: Image Upload to Cloudinary --- //
+app.post('/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) throw new Error('No image file received');
+    cloudinary.uploader.upload_stream(
+      { resource_type: "image" },
+      (error, result) => {
+        if (error) return res.status(500).json({ error: error.message });
+        res.json({ imageUrl: result.secure_url });
+      }
+    ).end(req.file.buffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-// Create a new property listing (after contract deploy)
+// ---- Property Listing APIs ----
+
 app.post('/property', async (req, res) => {
   try {
-    const { title, description, ipfsHash, owner, contractAddress, rentEth, depositEth, duration } = req.body;
-    const property = new Property({ title, description, ipfsHash, owner, contractAddress, rentEth, depositEth, duration });
+    const { title, description, ipfsHash, owner, contractAddress, rentEth, depositEth, duration, imageUrl } = req.body;
+    const property = new Property({ title, description, ipfsHash, owner, contractAddress, rentEth, depositEth, duration, imageUrl, status: 'available' });
     await property.save();
     res.json({ success: true, property });
   } catch (err) {
@@ -46,25 +69,22 @@ app.post('/property', async (req, res) => {
   }
 });
 
-// Get all property listings
 app.get('/properties', async (req, res) => {
   const properties = await Property.find();
   res.json(properties);
 });
 
-// Get a single property listing by ID
 app.get('/property/:id', async (req, res) => {
   const property = await Property.findById(req.params.id);
   res.json(property);
 });
 
-// Get all properties by owner address
 app.get('/properties/by-owner/:owner', async (req, res) => {
   const properties = await Property.find({ owner: req.params.owner });
   res.json(properties);
 });
 
-// --- Rental Agreement APIs ---
+// ---- Rental Agreement APIs ----
 
 app.post('/deploy', async (req, res) => {
   try {
@@ -130,6 +150,7 @@ app.get('/agreement/:address', async (req, res) => {
   }
 });
 
+// Activate contract
 app.post('/activate', async (req, res) => {
   try {
     const { contractAddress, rentEth, depositEth } = req.body;
@@ -138,12 +159,14 @@ app.post('/activate', async (req, res) => {
     const value = parseEther((Number(rentEth) + Number(depositEth)).toString());
     const tx = await contractWithSigner.activateAgreement({ value });
     await tx.wait();
+    await Property.updateOne({ contractAddress }, { $set: { status: 'occupied' } });
     res.json({ success: true, txHash: tx.hash });
   } catch (err) {
     res.status(400).json({ success: false, error: err.toString() });
   }
 });
 
+// Terminate contract
 app.post('/terminate', async (req, res) => {
   try {
     const { contractAddress } = req.body;
@@ -151,46 +174,14 @@ app.post('/terminate', async (req, res) => {
     const contractWithSigner = new Contract(contractAddress, abi, wallet);
     const tx = await contractWithSigner.terminateAgreement();
     await tx.wait();
+    await Property.updateOne({ contractAddress }, { $set: { status: 'terminated' } });
     res.json({ success: true, txHash: tx.hash });
   } catch (err) {
     res.status(400).json({ success: false, error: err.toString() });
   }
 });
 
-// --- Legacy Endpoints (optional) ---
-
-app.get('/status', async (req, res) => {
-  const isActive = await contract.isActive();
-  const isTerminated = await contract.isTerminated();
-  res.json({ isActive, isTerminated });
-});
-
-app.get('/agreement', async (req, res) => {
-  const [
-    landlord, renter, propertyIPFSHash, rentAmount,
-    depositAmount, rentalDuration, isActive, isTerminated
-  ] = await Promise.all([
-    contract.landlord(),
-    contract.renter(),
-    contract.propertyIPFSHash(),
-    contract.rentAmount(),
-    contract.depositAmount(),
-    contract.rentalDuration(),
-    contract.isActive(),
-    contract.isTerminated()
-  ]);
-  res.json({
-    landlord,
-    renter,
-    propertyIPFSHash,
-    rentAmount: formatEther(rentAmount),
-    depositAmount: formatEther(depositAmount),
-    rentalDuration: rentalDuration.toString(),
-    isActive,
-    isTerminated
-  });
-});
-
+// Start server
 app.listen(port, () => {
   console.log(`API server listening on port ${port}`);
 });

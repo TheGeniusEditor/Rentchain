@@ -9,7 +9,8 @@ const PropertySchema = new mongoose.Schema({
   rentEth: String,
   depositEth: String,
   duration: String,
-  status: { type: String, default: 'available' }
+  status: String,
+  imageUrl: String    // <-- Add this field!
 });
 
 module.exports = mongoose.model('Property', PropertySchema);
