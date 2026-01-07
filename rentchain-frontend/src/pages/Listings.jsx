@@ -44,6 +44,7 @@ export default function Listings() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [ethToInrRate, setEthToInrRate] = useState(0);
   const theme = useTheme();
   const controls = useAnimation();
 
@@ -78,6 +79,30 @@ export default function Listings() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const fetchEthRate = async () => {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=inr');
+        const data = await response.json();
+        setEthToInrRate(data.ethereum.inr);
+      } catch (error) {
+        console.error('Failed to fetch ETH rate:', error);
+        setEthToInrRate(0);
+      }
+    };
+    fetchEthRate();
+  }, []);
+
+  const formatETH = (ethValue) => {
+    return `${parseFloat(ethValue).toFixed(4)} ETH`;
+  };
+
+  const formatINR = (ethValue) => {
+    if (ethToInrRate === 0) return '₹--';
+    const inrValue = parseFloat(ethValue) * ethToInrRate;
+    return `₹${inrValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -156,7 +181,7 @@ export default function Listings() {
             color: 'white'
           }}>
             <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>
-              {property.rentEth} ETH/month
+              {formatETH(property.rentEth)} • {formatINR(property.rentEth)}/month
             </Typography>
           </Box>
         </Box>

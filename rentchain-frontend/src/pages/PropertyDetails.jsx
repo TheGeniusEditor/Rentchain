@@ -55,6 +55,7 @@ export default function PropertyDetails() {
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [ethToInrRate, setEthToInrRate] = useState(0);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const controls = useAnimation();
@@ -94,6 +95,30 @@ export default function PropertyDetails() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const fetchEthRate = async () => {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=inr');
+        const data = await response.json();
+        setEthToInrRate(data.ethereum.inr);
+      } catch (error) {
+        console.error('Failed to fetch ETH rate:', error);
+        setEthToInrRate(0);
+      }
+    };
+    fetchEthRate();
+  }, []);
+
+  const formatETH = (ethValue) => {
+    return `${parseFloat(ethValue).toFixed(4)} ETH`;
+  };
+
+  const formatINR = (ethValue) => {
+    if (ethToInrRate === 0) return '₹--';
+    const inrValue = parseFloat(ethValue) * ethToInrRate;
+    return `₹${inrValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -167,12 +192,12 @@ export default function PropertyDetails() {
     {
       icon: <MoneyIcon color="primary" />,
       label: "Monthly Rent",
-      value: `${property.rentEth} ETH`
+      value: `${formatETH(property.rentEth)} • ${formatINR(property.rentEth)}`
     },
     {
       icon: <SecurityIcon color="secondary" />,
       label: "Security Deposit",
-      value: `${property.depositEth} ETH`
+      value: `${formatETH(property.depositEth)} • ${formatINR(property.depositEth)}`
     },
     {
       icon: <PersonIcon color="action" />,
@@ -389,7 +414,7 @@ export default function PropertyDetails() {
                         mb: 1
                       }}
                     >
-                      {property.rentEth} ETH
+                      {formatETH(property.rentEth)} • {formatINR(property.rentEth)}
                     </Typography>
                     <Typography variant="h6" color="text.secondary" fontWeight={500}>
                       per month
@@ -399,7 +424,7 @@ export default function PropertyDetails() {
                   <Divider sx={{ my: 3, opacity: 0.3 }} />
 
                   <Typography variant="body1" color="text.secondary" sx={{ mb: 3, lineHeight: 1.6 }}>
-                    Security Deposit: <strong>{property.depositEth} ETH</strong>
+                    Security Deposit: <strong>{formatETH(property.depositEth)} • {formatINR(property.depositEth)}</strong>
                   </Typography>
 
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

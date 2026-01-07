@@ -12,7 +12,9 @@ import {
   useMediaQuery,
   useTheme,
   Badge,
-  Tooltip
+  Tooltip,
+  ListItemIcon,
+  ListItemText
 } from "@mui/material";
 import {
   Notifications as NotificationsIcon,
@@ -20,7 +22,9 @@ import {
   Home as HomeIcon,
   Add as AddIcon,
   Dashboard as DashboardIcon,
-  AccountCircle as AccountIcon
+  AccountCircle as AccountIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from "@mui/icons-material";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -35,6 +39,7 @@ export default function AppNavbar() {
   const location = useLocation();
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
+  const [dropdownAnchorEl, setDropdownAnchorEl] = useState(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAllNotifications } = useNotifications();
 
@@ -60,6 +65,14 @@ export default function AppNavbar() {
 
   const handleNotificationClose = () => {
     setNotificationAnchorEl(null);
+  };
+
+  const handleDropdownMenu = (event) => {
+    setDropdownAnchorEl(event.currentTarget);
+  };
+
+  const handleDropdownClose = () => {
+    setDropdownAnchorEl(null);
   };
 
   const menuItems = [
@@ -218,56 +231,120 @@ export default function AppNavbar() {
                 transition={{ duration: 0.3 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8 }}
               >
-                {menuItems.map((item, index) => (
-                  <motion.div
-                    key={item.text}
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 + 0.2 }}
-                    whileHover={buttonHover}
-                    whileTap={buttonTap}
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  whileHover={buttonHover}
+                  whileTap={buttonTap}
+                >
+                  <Button
+                    color="inherit"
+                    onClick={handleDropdownMenu}
+                    endIcon={dropdownAnchorEl ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      px: 3,
+                      py: 1.5,
+                      borderRadius: 3,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      backgroundColor: dropdownAnchorEl ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                      color: dropdownAnchorEl ? 'primary.main' : 'text.primary',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: '-100%',
+                        width: '100%',
+                        height: '100%',
+                        background: 'linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.1), transparent)',
+                        transition: 'left 0.5s',
+                      },
+                      '&:hover::before': {
+                        left: '100%',
+                      },
+                      '&:hover': {
+                        backgroundColor: 'rgba(37, 99, 235, 0.04)',
+                        color: 'primary.main',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.15)',
+                      },
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    }}
                   >
-                    <Button
-                      color="inherit"
-                      component={Link}
-                      to={item.path}
-                      startIcon={item.icon}
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: '0.9rem',
-                        px: 3,
-                        py: 1.5,
-                        borderRadius: 3,
-                        position: 'relative',
-                        overflow: 'hidden',
-                        backgroundColor: isActive(item.path) ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
-                        color: isActive(item.path) ? 'primary.main' : 'text.primary',
-                        '&::before': {
-                          content: '""',
-                          position: 'absolute',
-                          top: 0,
-                          left: '-100%',
-                          width: '100%',
-                          height: '100%',
-                          background: 'linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.1), transparent)',
-                          transition: 'left 0.5s',
-                        },
-                        '&:hover::before': {
-                          left: '100%',
-                        },
-                        '&:hover': {
-                          backgroundColor: 'rgba(37, 99, 235, 0.04)',
-                          color: 'primary.main',
-                          transform: 'translateY(-2px)',
-                          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.15)',
-                        },
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      }}
+                    Menu
+                  </Button>
+                </motion.div>
+                <Menu
+                  id="dropdown-menu"
+                  anchorEl={dropdownAnchorEl}
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'center',
+                  }}
+                  keepMounted
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'center',
+                  }}
+                  open={Boolean(dropdownAnchorEl)}
+                  onClose={handleDropdownClose}
+                  PaperProps={{
+                    sx: {
+                      borderRadius: 3,
+                      backdropFilter: 'blur(20px)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+                      mt: 1,
+                      minWidth: 200,
+                    }
+                  }}
+                >
+                  {menuItems.map((item, index) => (
+                    <motion.div
+                      key={item.text}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
                     >
-                      {item.text}
-                    </Button>
-                  </motion.div>
-                ))}
+                      <MenuItem
+                        component={Link}
+                        to={item.path}
+                        onClick={handleDropdownClose}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          py: 1.5,
+                          px: 3,
+                          borderRadius: 2,
+                          mx: 1,
+                          my: 0.5,
+                          transition: 'all 0.2s ease',
+                          backgroundColor: isActive(item.path) ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                          '&:hover': {
+                            backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                            transform: 'translateX(4px)',
+                          }
+                        }}
+                      >
+                        <ListItemIcon sx={{ color: isActive(item.path) ? 'primary.main' : 'text.secondary', minWidth: 40 }}>
+                          {item.icon}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={item.text}
+                          primaryTypographyProps={{
+                            fontWeight: isActive(item.path) ? 600 : 500,
+                            color: isActive(item.path) ? 'primary.main' : 'text.primary'
+                          }}
+                        />
+                      </MenuItem>
+                    </motion.div>
+                  ))}
+                </Menu>
               </motion.div>
             )}
           </AnimatePresence>
@@ -388,7 +465,7 @@ export default function AppNavbar() {
             ))}
           </Menu>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
             <motion.div
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}

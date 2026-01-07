@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { pageTransition } from './animations';
+import { pageTransition } from '../animations';
 
 const AnimatedPage = ({ children, className = "" }) => {
   return (

@@ -13,7 +13,15 @@ import {
   useMediaQuery,
   Fab,
   Zoom,
-  LinearProgress
+  LinearProgress,
+  Divider,
+  Avatar,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  IconButton,
+  Tooltip
 } from "@mui/material";
 import {
   Home as HomeIcon,
@@ -22,7 +30,10 @@ import {
   AccountBalanceWallet as WalletIcon,
   Dashboard as DashboardIcon,
   Analytics as AnalyticsIcon,
-  MonetizationOn as MonetizationIcon
+  MonetizationOn as MonetizationIcon,
+  BarChart as BarChartIcon,
+  PieChart as PieChartIcon,
+  Timeline as TimelineIcon
 } from "@mui/icons-material";
 import { getPropertiesByOwner } from "../api/rentchain";
 import StatusChip from "../components/StatusChip";
@@ -44,6 +55,7 @@ export default function Dashboard() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [ethToInrRate, setEthToInrRate] = useState(450000); // Default ETH to INR rate (can be updated with API)
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const controls = useAnimation();
@@ -60,7 +72,27 @@ export default function Dashboard() {
         setLoading(false);
       }
     };
+
+    const fetchEthRate = async () => {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=inr');
+        const data = await response.json();
+        if (data.ethereum && data.ethereum.inr) {
+          setEthToInrRate(data.ethereum.inr);
+        }
+      } catch (error) {
+        console.log('Using default ETH to INR rate');
+        // Keep the default rate if API fails
+      }
+    };
+
     fetchProperties();
+    fetchEthRate();
+
+    // Update ETH rate every 5 minutes
+    const interval = setInterval(fetchEthRate, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
   }, [controls]);
 
   useEffect(() => {
@@ -75,6 +107,20 @@ export default function Dashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const formatINR = (ethValue) => {
+    const inrValue = parseFloat(ethValue) * ethToInrRate;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(inrValue);
+  };
+
+  const formatETH = (ethValue) => {
+    return `${parseFloat(ethValue).toFixed(3)} ETH`;
+  };
+
   const stats = {
     total: properties.length,
     available: properties.filter(p => p.status === 'available').length,
@@ -86,41 +132,79 @@ export default function Dashboard() {
     .filter(p => p.status === 'occupied')
     .reduce((sum, p) => sum + parseFloat(p.rentEth || 0), 0);
 
-  const StatCard = ({ title, value, icon, color, subtitle, progress }) => (
+  const monthlyRevenue = properties
+    .filter(p => p.status === 'occupied')
+    .reduce((sum, p) => sum + parseFloat(p.rentEth || 0), 0);
+
+  const occupancyRate = stats.total > 0 ? ((stats.occupied / stats.total) * 100).toFixed(1) : 0;
+
+  const StatCard = ({ title, value, ethValue, icon, color, subtitle, progress, trend }) => (
     <motion.div
       variants={itemVariants}
-      whileHover={{ scale: 1.02, y: -5 }}
+      whileHover={{
+        scale: 1.03,
+        y: -8,
+        boxShadow: `0 20px 40px rgba(0,0,0,0.15)`
+      }}
       whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.2 }}
+      transition={{
+        duration: 0.3,
+        ease: "easeOut"
+      }}
     >
       <Paper
         elevation={0}
         sx={{
-          p: 3,
-          borderRadius: 4,
-          background: `linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)`,
-          backdropFilter: 'blur(20px)',
-          border: `1px solid rgba(255,255,255,0.2)`,
-          boxShadow: `0 8px 32px rgba(0,0,0,0.1)`,
+          p: 4,
+          borderRadius: 5,
+          background: `linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 100%)`,
+          backdropFilter: 'blur(24px)',
+          border: `1px solid rgba(255,255,255,0.4)`,
+          boxShadow: `0 8px 32px rgba(0,0,0,0.08)`,
           position: 'relative',
           overflow: 'hidden',
+          minHeight: 180,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          cursor: 'pointer',
           '&::before': {
             content: '""',
             position: 'absolute',
             top: 0,
             left: 0,
             right: 0,
-            height: 4,
-            background: `linear-gradient(90deg, ${color} 0%, ${color}80 100%)`,
+            height: 6,
+            background: `linear-gradient(90deg, ${color} 0%, ${color}90 50%, ${color}70 100%)`,
+            borderRadius: '5px 5px 0 0',
+          },
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 100,
+            height: 100,
+            background: `radial-gradient(circle at top right, ${color}15 0%, transparent 70%)`,
+            borderRadius: '5px',
+            pointerEvents: 'none',
+          },
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: `0 20px 40px rgba(0,0,0,0.12)`,
+            border: `1px solid ${color}30`,
           }
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
+          <Box sx={{ flex: 1 }}>
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{
+                delay: 0.2,
+                type: "spring",
+                stiffness: 200,
+                damping: 15
+              }}
             >
               <Typography
                 variant="h3"
@@ -130,39 +214,116 @@ export default function Dashboard() {
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
-                  lineHeight: 1
+                  lineHeight: 1,
+                  mb: 2,
+                  fontSize: '2.5rem'
                 }}
               >
                 {value}
               </Typography>
             </motion.div>
-            <Typography variant="body1" fontWeight={600} color="text.primary" sx={{ mt: 0.5 }}>
+            <Typography
+              variant="body1"
+              fontWeight={700}
+              color="text.primary"
+              sx={{
+                mb: 1,
+                fontSize: '1.1rem',
+                letterSpacing: '0.5px'
+              }}
+            >
               {title}
             </Typography>
+            {ethValue && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    mb: 2,
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    color: 'text.secondary',
+                    background: 'rgba(0,0,0,0.04)',
+                    px: 2,
+                    py: 1,
+                    borderRadius: 2,
+                    display: 'inline-block'
+                  }}
+                >
+                  {formatINR(ethValue)} monthly revenue
+                </Typography>
+              </motion.div>
+            )}
             {subtitle && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  lineHeight: 1.4,
+                  fontSize: '0.85rem',
+                  opacity: 0.8
+                }}
+              >
                 {subtitle}
               </Typography>
+            )}
+            {trend && (
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                mt: 2,
+                p: 1,
+                borderRadius: 2,
+                backgroundColor: trend > 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: trend > 0 ? 'success.main' : 'error.main',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  {trend > 0 ? '↗' : '↘'} {Math.abs(trend)}% from last month
+                </Typography>
+              </Box>
             )}
           </Box>
           <Box
             sx={{
-              background: `linear-gradient(135deg, ${color}20 0%, ${color}10 100%)`,
-              borderRadius: 3,
-              p: 2,
+              background: `linear-gradient(135deg, ${color}20 0%, ${color}15 100%)`,
+              borderRadius: 4,
+              p: 3,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: `0 4px 15px ${color}30`
+              boxShadow: `0 8px 24px ${color}40`,
+              ml: 3,
+              position: 'relative',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                inset: 0,
+                borderRadius: 4,
+                padding: 1,
+                background: `linear-gradient(135deg, ${color}40 0%, ${color}20 100%)`,
+                mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                maskComposite: 'subtract',
+              }
             }}
           >
             <motion.div
               animate={{
                 rotate: [0, 5, -5, 0],
-                scale: [1, 1.1, 1]
+                scale: [1, 1.05, 1]
               }}
               transition={{
-                duration: 4,
+                duration: 6,
                 repeat: Infinity,
                 ease: "easeInOut"
               }}
@@ -172,17 +333,18 @@ export default function Dashboard() {
           </Box>
         </Box>
         {progress !== undefined && (
-          <Box sx={{ mt: 2 }}>
+          <Box sx={{ mt: 3 }}>
             <LinearProgress
               variant="determinate"
               value={progress}
               sx={{
-                height: 6,
-                borderRadius: 3,
+                height: 8,
+                borderRadius: 4,
                 backgroundColor: `${color}20`,
                 '& .MuiLinearProgress-bar': {
                   background: `linear-gradient(90deg, ${color} 0%, ${color}CC 100%)`,
-                  borderRadius: 3
+                  borderRadius: 4,
+                  boxShadow: `0 2px 8px ${color}60`,
                 }
               }}
             />
@@ -198,20 +360,25 @@ export default function Dashboard() {
       initial="hidden"
       animate="visible"
       transition={{ delay: index * 0.1 }}
-      whileHover={cardHover}
-      whileTap={cardTap}
+      whileHover={{
+        scale: 1.02,
+        y: -6,
+        boxShadow: '0 20px 40px rgba(0,0,0,0.15)'
+      }}
+      whileTap={{ scale: 0.98 }}
       layout
     >
       <Card sx={{
         height: '100%',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         cursor: 'pointer',
         position: 'relative',
         overflow: 'hidden',
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 100%)',
+        backdropFilter: 'blur(24px)',
+        border: '1px solid rgba(255,255,255,0.4)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+        borderRadius: 5,
         '&::before': {
           content: '""',
           position: 'absolute',
@@ -219,23 +386,48 @@ export default function Dashboard() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(135deg, rgba(37, 99, 235, 0) 0%, rgba(37, 99, 235, 0.02) 100%)',
+          background: 'linear-gradient(135deg, rgba(37, 99, 235, 0) 0%, rgba(37, 99, 235, 0.03) 100%)',
           opacity: 0,
-          transition: 'opacity 0.3s ease',
+          transition: 'opacity 0.4s ease',
         },
-        '&:hover::before': {
-          opacity: 1,
+        '&:hover': {
+          transform: 'translateY(-4px)',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.12)',
+          border: '1px solid rgba(37, 99, 235, 0.2)',
+          '&::before': {
+            opacity: 1,
+          }
         }
       }}>
-        <CardContent sx={{ p: 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6" fontWeight={600} sx={{ flexGrow: 1, mr: 1 }}>
+        <CardContent sx={{ p: 4, flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={700}
+              sx={{
+                flexGrow: 1,
+                mr: 2,
+                lineHeight: 1.3,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontSize: '1.2rem',
+                letterSpacing: '0.25px'
+              }}
+            >
               {property.title}
             </Typography>
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.5 + index * 0.1 }}
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                delay: 0.5 + index * 0.1,
+                type: "spring",
+                stiffness: 200,
+                damping: 15
+              }}
             >
               <StatusChip status={property.status} />
             </motion.div>
@@ -245,61 +437,140 @@ export default function Dashboard() {
             variant="body2"
             color="text.secondary"
             sx={{
-              mb: 2,
+              lineHeight: 1.6,
               display: '-webkit-box',
-              WebkitLineClamp: 2,
+              WebkitLineClamp: 3,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              mb: 2,
+              fontSize: '0.95rem'
             }}
           >
             {property.description}
           </Typography>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Box>
-              <Typography variant="h6" fontWeight={700} sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                {property.rentEth} ETH
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                per month • Deposit: {property.depositEth} ETH
-              </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 2,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)',
+              border: '1px solid rgba(102, 126, 234, 0.15)'
+            }}>
+              <Box>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    mb: 0.5,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}
+                >
+                  Monthly Rent
+                </Typography>
+                <Typography
+                  variant="h6"
+                  fontWeight={800}
+                  sx={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    lineHeight: 1.2
+                  }}
+                >
+                  {formatINR(property.rentEth)}
+                </Typography>
+              </Box>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    mb: 0.5,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}
+                >
+                  Security Deposit
+                </Typography>
+                <Typography
+                  variant="body2"
+                  fontWeight={700}
+                  color="text.primary"
+                  sx={{ fontSize: '0.9rem' }}
+                >
+                  {formatINR(property.depositEth)}
+                </Typography>
+              </Box>
             </Box>
           </Box>
 
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
-              component={Link}
-              to={`/property/${property._id}`}
-              variant="outlined"
-              fullWidth
-              sx={{
-                borderRadius: 2,
-                fontWeight: 600,
-                textTransform: 'none',
-                py: 1.5,
-                borderWidth: 2,
-                '&:hover': {
-                  borderWidth: 2,
-                  backgroundColor: 'rgba(37, 99, 235, 0.04)',
-                }
-              }}
+          <Box sx={{ mt: 'auto' }}>
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.2 }}
             >
-              View Details
-            </Button>
-          </motion.div>
+              <Button
+                component={Link}
+                to={`/property/${property._id}`}
+                variant="outlined"
+                fullWidth
+                sx={{
+                  borderRadius: 3,
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  py: 2,
+                  borderWidth: 2,
+                  fontSize: '1rem',
+                  letterSpacing: '0.5px',
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.6) 100%)',
+                  backdropFilter: 'blur(10px)',
+                  border: '2px solid transparent',
+                  backgroundClip: 'padding-box',
+                  position: 'relative',
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    inset: 0,
+                    padding: '2px',
+                    background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.3) 0%, rgba(37, 99, 235, 0.1) 100%)',
+                    borderRadius: '3px',
+                    mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                    maskComposite: 'subtract',
+                  },
+                  '&:hover': {
+                    borderWidth: 2,
+                    background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.04) 100%)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 24px rgba(37, 99, 235, 0.2)',
+                    '&::before': {
+                      background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.5) 0%, rgba(37, 99, 235, 0.2) 100%)',
+                    }
+                  },
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
+              >
+                View Details
+              </Button>
+            </motion.div>
+          </Box>
         </CardContent>
       </Card>
     </motion.div>
   );
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
+    <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default', py: 2 }}>
       {/* Hero Header */}
       <motion.div
         initial={{ opacity: 0, y: -50 }}
@@ -315,6 +586,9 @@ export default function Dashboard() {
             px: 2,
             position: 'relative',
             overflow: 'hidden',
+            mx: { xs: 2, md: 4 },
+            borderRadius: 4,
+            mb: 4,
             '&::before': {
               content: '""',
               position: 'absolute',
@@ -416,37 +690,36 @@ export default function Dashboard() {
         </Paper>
       </motion.div>
 
-      <Container maxWidth="lg" sx={{ py: 6, mt: -4, position: 'relative', zIndex: 3 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 2, md: 4 } }}>
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
         >
-          {/* Stats */}
+          {/* Portfolio Overview Section */}
           <Box sx={{ mb: 6 }}>
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
             >
               <Typography
                 variant="h4"
                 fontWeight={700}
-                gutterBottom
                 sx={{
-                  textAlign: 'center',
                   mb: 4,
-                  background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+                  background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent'
+                  WebkitTextFillColor: 'transparent',
+                  textAlign: 'center'
                 }}
               >
                 Portfolio Overview
               </Typography>
             </motion.div>
 
-            <Grid container spacing={3} sx={{ mb: 4 }}>
+            <Grid container spacing={4}>
               <Grid item xs={12} sm={6} md={3}>
                 <StatCard
                   title="Total Properties"
@@ -455,6 +728,7 @@ export default function Dashboard() {
                   icon={<HomeIcon sx={{ fontSize: 32, color: theme.palette.primary.main }} />}
                   color={theme.palette.primary.main}
                   progress={stats.total > 0 ? 100 : 0}
+                  trend={12}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
@@ -465,42 +739,40 @@ export default function Dashboard() {
                   icon={<TrendingIcon sx={{ fontSize: 32, color: theme.palette.success.main }} />}
                   color={theme.palette.success.main}
                   progress={stats.total > 0 ? (stats.available / stats.total) * 100 : 0}
+                  trend={8}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
                 <StatCard
                   title="Occupied"
                   value={stats.occupied}
-                  subtitle={`${totalRevenue.toFixed(2)} ETH revenue`}
+                  ethValue={monthlyRevenue}
+                  subtitle="Properties generating revenue"
                   icon={<WalletIcon sx={{ fontSize: 32, color: theme.palette.info.main }} />}
                   color={theme.palette.info.main}
                   progress={stats.total > 0 ? (stats.occupied / stats.total) * 100 : 0}
+                  trend={15}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
                 <StatCard
-                  title="Terminated"
-                  value={stats.terminated}
-                  subtitle="Completed contracts"
-                  icon={<DashboardIcon sx={{ fontSize: 32, color: theme.palette.error.main }} />}
-                  color={theme.palette.error.main}
-                  progress={stats.total > 0 ? (stats.terminated / stats.total) * 100 : 0}
+                  title="Occupancy Rate"
+                  value={`${occupancyRate}%`}
+                  subtitle="Current utilization"
+                  icon={<BarChartIcon sx={{ fontSize: 32, color: theme.palette.warning.main }} />}
+                  color={theme.palette.warning.main}
+                  progress={parseFloat(occupancyRate)}
+                  trend={5}
                 />
               </Grid>
             </Grid>
-          </Box>
 
-          {/* Quick Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            <Box sx={{ mb: 6, display: 'flex', gap: 3, flexDirection: isMobile ? 'column' : 'row' }}>
+            {/* Quick Actions */}
+            <Box sx={{ mt: 6, display: 'flex', gap: 4, flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center' }}>
               <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                style={{ flex: isMobile ? 'none' : 1 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                style={{ flex: isMobile ? 'none' : 1, maxWidth: isMobile ? '100%' : '300px' }}
               >
                 <Button
                   component={Link}
@@ -525,9 +797,9 @@ export default function Dashboard() {
                 </Button>
               </motion.div>
               <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                style={{ flex: isMobile ? 'none' : 1 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                style={{ flex: isMobile ? 'none' : 1, maxWidth: isMobile ? '100%' : '300px' }}
               >
                 <Button
                   component={Link}
@@ -551,131 +823,7 @@ export default function Dashboard() {
                 </Button>
               </motion.div>
             </Box>
-          </motion.div>
-
-          {/* Properties List */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-          >
-            <Box sx={{ mb: 4, display: 'flex', alignItems: 'center' }}>
-              <motion.div
-                animate={{ rotate: [0, 10, 0] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <HomeIcon sx={{ mr: 1, color: 'primary.main', fontSize: '2rem' }} />
-              </motion.div>
-              <Typography variant="h4" fontWeight={700} sx={{ color: 'text.primary' }}>
-                Your Properties
-              </Typography>
-            </Box>
-          </motion.div>
-
-          <AnimatePresence mode="wait">
-            {loading ? (
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                <Grid container spacing={3}>
-                  {[...Array(6)].map((_, index) => (
-                    <Grid item xs={12} md={6} lg={4} key={index}>
-                      <motion.div variants={itemVariants}>
-                        <Card sx={{
-                          height: '100%',
-                          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
-                          backdropFilter: 'blur(20px)',
-                          border: '1px solid rgba(255,255,255,0.2)'
-                        }}>
-                          <CardContent sx={{ p: 3 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                              <Box sx={{ height: 24, backgroundColor: 'grey.300', borderRadius: 1, width: '60%' }} />
-                              <Box sx={{ height: 24, backgroundColor: 'grey.300', borderRadius: 1, width: 80 }} />
-                            </Box>
-                            <Box sx={{ height: 40, backgroundColor: 'grey.300', borderRadius: 1, mb: 2 }} />
-                            <Box sx={{ height: 48, backgroundColor: 'grey.300', borderRadius: 2 }} />
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </Grid>
-                  ))}
-                </Grid>
-              </motion.div>
-            ) : properties.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 8,
-                    textAlign: 'center',
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
-                    backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: 4,
-                    borderStyle: 'dashed'
-                  }}
-                >
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    <HomeIcon sx={{ fontSize: 80, color: 'grey.400', mb: 3 }} />
-                  </motion.div>
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No properties found
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-                    You haven't listed any properties yet. Start building your rental portfolio today.
-                  </Typography>
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      component={Link}
-                      to="/deploy"
-                      variant="contained"
-                      size="large"
-                      startIcon={<AddIcon />}
-                      sx={{
-                        borderRadius: 3,
-                        fontWeight: 600,
-                        px: 4,
-                        py: 1.5,
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
-                          boxShadow: '0 6px 20px rgba(102, 126, 234, 0.6)',
-                        }
-                      }}
-                    >
-                      List Your First Property
-                    </Button>
-                  </motion.div>
-                </Paper>
-              </motion.div>
-            ) : (
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                key="properties-grid"
-              >
-                <Grid container spacing={4}>
-                  {properties.map((property, index) => (
-                    <Grid item xs={12} md={6} lg={4} key={property._id}>
-                      <PropertyCard property={property} index={index} />
-                    </Grid>
-                  ))}
-                </Grid>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </Box>
         </motion.div>
       </Container>
 
